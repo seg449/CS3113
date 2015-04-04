@@ -1,0 +1,1 @@
+g++ -std=c++11 platformers.cpp Sprite.cpp hw05.cpp -o hw05 -lglut -lGL -lGLU -lGLEW -lSDL2 -lSDL2_image
