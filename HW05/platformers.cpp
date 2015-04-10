@@ -5,6 +5,7 @@
 #define WORLD_OFFSET_Y 0.0f
 
 float timeLeftOver = 0.0f;
+bool exploded = false;
 
 #include "platformers.h"
 
@@ -16,6 +17,7 @@ platformers::platformers(int score, bool finished, float lfTicks, float timeElap
 	score = score;
 	finished = finished;
 	lfTicks = lfTicks;
+	newVal = 0.0f;
 	timeElapsed = timeElapsed;
 	SDL_Init(SDL_INIT_VIDEO);
 	window = SDL_CreateWindow("HW05", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_OPENGL);
@@ -185,8 +187,9 @@ void platformers::menu(){
 	int temp = 0;
 	switch(state){
 		case MAIN_MENU:
-			drawText(size, "Collect all the items ", -0.95f, 0.09f, 0.06f, 1.0f, 1.0f, 1.0f, 1.0f);
+			drawText(size, "Collect all the gold items ", -0.95f, 0.09f, 0.06f, 1.0f, 1.0f, 1.0f, 1.0f);
 			drawText(size, "Use left and right arrow keys to move. Up to Jump", -0.9f, -0.2f, 0.035f, 1.0f, 1.0f, 1.0f, 1.0f);
+			drawText(size, "WATCH OUT FOR THE BLACK BOMBS! TOUCH THEM AND GAME OVER", -0.9f, -0.1f, 0.035f, 1.0f, 1.0f, 1.0f, 1.0f);
 			drawText(size, "Press Enter to start", -0.9f, -0.3f, 0.035f, 1.0f, 1.0f, 1.0f, 1.0f);
 			break;
 		case GAME:
@@ -197,17 +200,17 @@ void platformers::menu(){
 			glTranslatef(-player->x, -player->y, 0.0f);
 			renderMap();
 			if (player->isVisible){
-				player->Render(-.08f * mapWidth/2, .08f * mapHeight/2);
+				player->Render();
 			}
 			for (size_t i = 0; i < regObjects.size(); ++i){
 				if (regObjects[i]->isVisible){
-					regObjects[i]->Render(-.08f * mapWidth/2, .08f * mapHeight/2);
+					regObjects[i]->Render();
 				}
 				else {++temp;}
 			}
 			for (size_t i = 0; i < bombs.size(); ++i){
 				if (bombs[i]->isVisible){
-					bombs[i]->Render(-.08f * mapWidth/2, .08f * mapHeight/2);
+					bombs[i]->Render();
 				}
 			}
 			if (temp == regObjects.size()) {
@@ -221,10 +224,15 @@ void platformers::menu(){
 			break;
 		case OVER:
 			glClearColor(0.0, 0.0, 0.0, 0.0);
+			if (!exploded){
+				drawText(size, "GAME OVER", -0.8f, 0.4f, 0.2f, 1.0f, 1.0f, 1.0f, 1.0f);
+				drawText(size, "CONGRATULATIONS! YOU WON!", -1.2f, 0.0f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f);
+				drawText(size, "Press ESC", -0.8f, -0.4f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f);
+				break;
+			}
 			drawText(size, "GAME OVER", -0.8f, 0.4f, 0.2f, 1.0f, 1.0f, 1.0f, 1.0f);
-			drawText(size, "CONGRATULATIONS! YOU WON!", -0.8f, 0.0f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f);
-			drawText(size, "Press ESC", -0.8f, -0.4f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f);
-			break;
+			drawText(size, "Better luck next time!", -0.8f, -0.4f, 0.1f, 1.0f, 1.0f, 1.0f, 1.0f);
+			break;	
 	}
 	SDL_GL_SwapWindow(window);
 }
@@ -279,6 +287,10 @@ void platformers::keyboardControl(float elapsed){
 			player->collidedBottom = false; 
 			if (debug) cout << "UP" << endl;
 		}
+		else {
+			player->acceleration_x = 0.0f;
+			//player->acceleration_y = 0.0f;
+		}
 	}
 	else if (state == OVER) { 
 		if (key[SDL_SCANCODE_ESCAPE]) finished = true; //escape closes window
@@ -298,14 +310,15 @@ bool platformers::leftSpriteCollision(Sprite* s, float* newVal){
 	//cout << "LEFT" << endl;
 	//check left side
 	int gridX, gridY; 
-	//float newVal;
-	worldToTileCoordinates(s->x - s->width/2, s->y, &gridX, &gridY);
-	if (gridX < 0 || gridX > mapWidth || gridY < 0 || gridY > mapHeight){
+	float val = s->x - s->width/2;
+	worldToTileCoordinates(val, s->y, &gridX, &gridY);
+	if (gridX < 0 || gridX > mapWidth || gridY < 0 || gridY >= 32){
 		return false;
 	}
-	if (levelData[gridY][gridX] == 1 || levelData[gridY][gridX] == 32){
+	if (levelData[gridY][gridX] == 0){
+		if (debug) cout << "True4" << endl;
 		float offset = gridX * .08f;
-		*newVal = (-(s->x - s->width/2) - offset);
+		*newVal = (-val - offset);
 		return true;
 	}
 	*newVal = 0.0f;
@@ -314,13 +327,15 @@ bool platformers::leftSpriteCollision(Sprite* s, float* newVal){
 
 bool platformers::rightSpriteCollision(Sprite* s, float* newVal){
 	int gridX, gridY; 
-	worldToTileCoordinates(s->x + s->width/2, s->y, &gridX, &gridY);
-	if (gridX < 0 || gridX > mapWidth || gridY < 0 || gridY > mapHeight){
+	float val = s->x + s->width/2;
+	worldToTileCoordinates(val, s->y, &gridX, &gridY);
+	if (gridX < 0 || gridX > mapWidth || gridY < 0 || gridY >= 32){
 		return false;
 	}
-	if (levelData[gridY][gridX] == 1 || levelData[gridY][gridX] == 32){
+	if (levelData[gridY][gridX] == 0){
+		if (debug) cout << "True2" << endl;
 		float offset = gridX * .08f;
-		*newVal = (-(s->x + s->width/2) - offset);
+		*newVal = (-val - offset);
 		return true;
 	}
 	*newVal = 0.0f;
@@ -333,13 +348,14 @@ bool platformers::bottomSpriteCollision(Sprite* s, float* newVal){
 	float val = s->y - (s->height / 2);
 	if (debug) cout << val << endl;
 	worldToTileCoordinates(s->x, val, &gridX, &gridY);
-	if (gridX < 0 || gridX > mapWidth || gridY < 0 || gridY > 32){
+	if (gridX < 0 || gridX > mapWidth || gridY < 0 || gridY >= 32){
 		*newVal = 0.0;
 		return false;
 	}
-	if (levelData[gridY][gridX] == 1 || levelData[gridY][gridX] == 32){
+	if (levelData[gridY][gridX] == 0){
+		if (debug) cout << "True" << endl;
 		float offset = gridY * .08f;
-		*newVal = (-(s->y - s->height / 2) - offset);
+		*newVal = (-val - offset);
 		return true;
 	}
 	*newVal = 0.0f;
@@ -349,13 +365,15 @@ bool platformers::bottomSpriteCollision(Sprite* s, float* newVal){
 bool platformers::topSpriteCollision(Sprite* s, float* newVal){
 	//cout << "TOP" << endl;
 	int gridX, gridY;
-	worldToTileCoordinates(s->x, s->y + s->height / 2, &gridX, &gridY);
-	if (gridX < 0 || gridX > 64 || gridY < 0 || gridY > 32){
+	float val = s->y + (s->height / 2);
+	worldToTileCoordinates(s->x, val, &gridX, &gridY);
+	if (gridX < 0 || gridX > mapWidth || gridY < 0 || gridY >= 32){
 		return false;
 	}
-	if (levelData[gridY][gridX] == 1 || levelData[gridY][gridX] == 32){
+	if (levelData[gridY][gridX] == 0){
+		if (debug) cout << "True3" << endl;
 		float offset = gridY * .08f;
-		*newVal = (-(s->y + s->height / 2) - offset);
+		*newVal = -val - offset;
 		return true;
 	}
 	*newVal = 0.0f;
@@ -385,6 +403,7 @@ void platformers::FixedUpdate(){
 			if (player->collidesWith(bombs[i])){
 				Mix_PlayChannel(-1, bombSound, 0);
 				state = OVER;
+				exploded = true;
 			}
 		}
 		for (size_t i = 0; i < regObjects.size(); ++i){
@@ -393,7 +412,6 @@ void platformers::FixedUpdate(){
 				Mix_PlayChannel(-1, coinS, 0);
 			}
 		}
-		float newVal = 0.0f;
 		if (leftSpriteCollision(player, &newVal)){
 			player->x -= newVal * .08f * FIXED_TIMESTEP;
 			player->velocity_x = 0.0f;
@@ -403,11 +421,11 @@ void platformers::FixedUpdate(){
 			player->velocity_x = 0.0f;
 		}
 		if (topSpriteCollision(player, &newVal)){
-			player->y += newVal - .08f;
+			player->y -= newVal * .08f;
 			player->velocity_y = 0.0f;
 		}
 		if (bottomSpriteCollision(player, &newVal)){
-			player->y -= newVal + .08f;
+			player->y += newVal;
 			player->velocity_y = 0.0f;
 			player->collidedBottom = true;
 		}

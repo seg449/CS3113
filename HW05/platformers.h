@@ -19,7 +19,7 @@ class platformers {
 	vector<Sprite*> regObjects;
 	vector<Sprite*> bombs;
 	bool finished, isVisible;
-	float timeElapsed, lfTicks, score; 
+	float timeElapsed, lfTicks, score, newVal; 
 	int state, mapWidth, mapHeight;
 	GLuint sheet, size;
 	SDL_Window* window;

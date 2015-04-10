@@ -18,14 +18,11 @@ Sprite::Sprite(float x, float y, float vX, float vY, float aX, float aY, float f
 	isVisible = true;
 }
 
-void Sprite::Render(float transX, float transY){
+void Sprite::Render(){
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, id);
 	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
-	//glLoadIdentity();
-	//glTranslatef(transX, transY, 0.0);
-	//cout << x << "\t" << y << "\t" << width << "\t" << height << endl;
 	glTranslatef(x, y, 0.0f);
 	GLfloat quad[] = {-width * 0.2f, height * 0.2f, -width * 0.2f, -height * 0.2f, width * 0.2f, -height * 0.2f, width * 0.2f, height * 0.2f};
 	glVertexPointer(2, GL_FLOAT, 0, quad);

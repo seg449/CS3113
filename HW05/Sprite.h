@@ -10,7 +10,7 @@ using namespace std;
 class Sprite {
 public:
 	Sprite(float x, float y, float vX = 0.0f, float vY = 0.0f, float aX = 0.0f, float aY = 0.0f, float fX = 1.2f, float fY = 1.2f, bool isStatic = true);
-	void Render(float transX, float transY);
+	void Render();
 	bool collidesWith(Sprite *entity);
 	GLuint id;
 	float x;
