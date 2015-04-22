@@ -1,0 +1,1 @@
+g++ -std=c++11 matrix.cpp vector.cpp asteroids.cpp sprite.cpp hw06.cpp -o hw06 -lglut -lGL -lGLU -lGLEW -lSDL2 -lSDL2_image -lSDL2_mixer
