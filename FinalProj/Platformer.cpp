@@ -20,6 +20,10 @@ float mapValue(float value, float srcMin, float srcMax, float dstMin, float dstM
     }
     return retVal;
 }
+float easeIn(float from, float to, float time) {
+    float tVal = time*time*time*time*time;
+    return (1.0f-tVal)*from + tVal*to;
+}
 float easeOut(float from, float to, float time) {
     float oneMinusT = 1.0f-time;
     float tVal =  1.0f - (oneMinusT * oneMinusT * oneMinusT *
@@ -106,8 +110,6 @@ void Platformer::DrawText(int fontTex, std::string text, float x, float y, float
     glPopMatrix();
     glDisable(GL_TEXTURE_2D);
 }
-
-
 Platformer::Platformer() {
     setup();
     done = false;
@@ -123,13 +125,16 @@ Platformer::~Platformer(){
     }
     delete player;
     
-    //   Mix_FreeChunk(someSound);
+    Mix_FreeChunk(coin);
+    Mix_FreeChunk(jump);
+    Mix_FreeChunk(hit);
+    Mix_FreeChunk(powerup);
+    Mix_FreeChunk(pew);
+    Mix_FreeChunk(button);
     Mix_FreeMusic(music);
-
     
     SDL_Quit();
 }
-
 void Platformer::readLevelOne() {
     ifstream infile("final_level1.txt");
     if (!infile) cerr << "err" << endl;
@@ -146,44 +151,9 @@ void Platformer::readLevelOne() {
             readEntityData(infile);
         }
     }
-
 }
 void Platformer::readLevelTwo() {
     ifstream infile("final_level2.txt");
-    if (!infile) cerr << "err" << endl;
-    string line;
-    while (getline(infile, line)){
-        
-        if (line == "[header]"){
-            if (!readHeader(infile)) return;
-        }
-        else if (line == "[layer]"){
-            readLayerData(infile);
-        }
-        else if (line == "[Objects]"){
-            readEntityData(infile);
-        }
-    }
-}
-void Platformer::readLevelThree() {
-    ifstream infile("final_level3.txt");
-    if (!infile) cerr << "err" << endl;
-    string line;
-    while (getline(infile, line)){
-        
-        if (line == "[header]"){
-            if (!readHeader(infile)) return;
-        }
-        else if (line == "[layer]"){
-            readLayerData(infile);
-        }
-        else if (line == "[Objects]"){
-            readEntityData(infile);
-        }
-    }
-}
-void Platformer::readLevelFour() {
-    ifstream infile("final_level4.txt");
     if (!infile) cerr << "err" << endl;
     string line;
     while (getline(infile, line)){
@@ -212,18 +182,18 @@ void Platformer::setup() {
     music = Mix_LoadMUS("music.mp3");
     coin = Mix_LoadWAV("coin.wav");
     jump = Mix_LoadWAV("jump.wav");
-    
+    hit = Mix_LoadWAV("hit.wav");
+    powerup = Mix_LoadWAV("powerup.wav");
+    pew = Mix_LoadWAV("shoot.wav");
+    button = Mix_LoadWAV("button.wav");
+
     Mix_PlayMusic(music, -1);
     
     glViewport(0,0,1200,800);
     
     glMatrixMode(GL_PROJECTION);
- //   glOrtho(-2.66, 2.66, -2.0, 2.0, -2.0, 2.0);
- //   glOrtho(-1.33, 1.33, -1.0, 1.0, -1.0, 1.0);
-    
-    glOrtho(-2.9, 2.9, -0.9, 1.7, -0.9, 1.7);
- //   glOrtho(-2.7, 2.7, -0.8, 1.7, -0.8, 1.7);
-    
+    glOrtho(-3.0, 3.0, -0.8, 2.5, -0.8, 2.5);
+ 
     // gray
 //    glClearColor(0.3f,0.3f,0.3f,0.0f);
     
@@ -244,7 +214,6 @@ void Platformer::setup() {
         runAnimation[i] = i;
     }
     
-    
     font_tex = LoadTexture("font.png");
     sprite_sheet = LoadTexture("tiles_spritesheet.png");
     sprite_sheet2 = LoadTexture("p1_walk.png");
@@ -253,20 +222,9 @@ void Platformer::setup() {
     hud = LoadTexture("hud.png");
     enemy = LoadTexture("enemies.png");
     
- //   unsigned int test = LoadTexture("bg.png");
-   
-    
-    
     tile_spriteX = 12;
     tile_spriteY = 12;
-    //    player_spriteX = 3;
-    //    player_spriteY = 4;
-    
-    //    float u = (float)(112 % player_spriteX) / player_spriteX;
-    //    float v = (float)(112 / player_spriteX) / player_spriteY;
-    //    float width = 1.0f / player_spriteX;
-    //    float height = 1.0f / player_spriteY;
-    //
+  
     SheetSprite* p1 = new SheetSprite(sprite_sheet2, 11, 1);
     player = new Entity(p1, 2.685, -6, 0.95, 0.2, 0);
     player->visible = true;
@@ -278,15 +236,6 @@ void Platformer::setup() {
     player->speed = 1.5;
     
     player->playerCoins = 0;
-    
-//    Entity* enemy = new Entity(enemies, 0.0/353.0, 32.0/153.0, 72.0/353.0, 36.0/353.0,
-    
-//    bop = new Entity(test, 0, 0, 1, 1, player->position.x, player->position.y, 0.02, 0.02, 0);
-//    bop->visible = true;
-//    bop->velocity.x = 0;
-//    bop->velocity.y = 0;
-//    bop->acceleration.x = 0;
-//    bop->acceleration.y = 0;
     
     Entity* heart1 = new Entity(hud, 0.0/269.0, 94.0/269.0, 53.0/269.0, 45.0/269.0, 2.0, 1.4, 0.3, 0.3, 0);
     heart1->visible = true;
@@ -301,24 +250,23 @@ void Platformer::setup() {
     heart2->velocity.y = 0;
     heart2->acceleration.x = 0;
     heart2->acceleration.y = 0;
-      heart2->color = "Full";
+    heart2->color = "Full";
     Entity* heart3 = new Entity(hud, 0.0/269.0, 94.0/269.0, 53.0/269.0, 45.0/269.0, 2.4, 1.4, 0.3, 0.3, 0);
     heart3->visible = true;
     heart3->velocity.x = 0;
     heart3->velocity.y = 0;
     heart3->acceleration.x = 0;
     heart3->acceleration.y = 0;
-      heart3->color = "Full";
+    heart3->color = "Full";
     Entity* heart4 = new Entity(hud, 0.0/269.0, 94.0/269.0, 53.0/269.0, 45.0/269.0, 2.4, 1.4, 0.3, 0.3, 0);
     heart4->visible = true;
     heart4->velocity.x = 0;
     heart4->velocity.y = 0;
     heart4->acceleration.x = 0;
     heart4->acceleration.y = 0;
-      heart4->color = "Full";
+    heart4->color = "Full";
     player->hearts = {heart1, heart2, heart3, heart4};
-    //reverse(player->hearts.begin(), player->hearts.end());
-    
+  
     coinHud = new Entity(hud, 55.0/269.0, 0.0/269.0, 47.0/269.0, 47.0/269.0, 2.6, 1.6, 0.2, 0.2, 0);
     coinHud->visible = true;
     coinHud->velocity.x = 0;
@@ -356,49 +304,17 @@ void Platformer::setup() {
     key4->visible = false;
     keyHuds = {key1, key2, key3, key4};
     
-
-    
-    
-//    par = ParticleEmitter(10);
-    
-    
-//
-//     Entity* heartHalf = new Entity(hud, 0.0/269.0, 0.0/269.0, 53.0/269.0, 45.0/269.0, 2.3, 1.4, 1, 1, 0);
-//    
-//      Entity* heartEmpty = new Entity(hud, 0.0/269.0, 47.0/269.0, 53.0/269.0, 45.0/269.0, 2.5, 1.4, 1, 1, 0);
-    
-    
     state = MAIN_MENU;
     done = false;
     lastFrameTicks = 0.0f;
     
-    gravity = 15;
+    gravity = 17;
     friction = 8;
     
     collideTiles = {42, 45, 67, 8, 56, 10, 11, 22, 43, 31, 19, 21, 117, 93, 115, 116, 127, 138};
     harmTiles = {46, 35, 60};
 
     readLevelOne();
-    
-//    ifstream infile("final_level1.txt");
-//    if (!infile) cerr << "err" << endl;
-//    string line;
-//    while (getline(infile, line)){
-//        
-//        if (line == "[header]"){
-//            if (!readHeader(infile)) return;
-//        }
-//        else if (line == "[layer]"){
-//            readLayerData(infile);
-//        }
-//        //        else if (line == "[Collision]") {
-//        //            readCollisionData(infile);
-//        //
-//        //        }
-//        else if (line == "[Items]"){
-//            readEntityData(infile);
-//        }
-//    }
     
     for (Entity* k_hud : keyHuds) {
         for (Entity* key : keys) {
@@ -410,7 +326,6 @@ void Platformer::setup() {
 void Platformer::placeEntity(string type, float placeX, float placeY){
     if (type == "Coin"){
         
-        
         Entity* coin = new Entity(items, 288.0/576.0, 360.0/576.0, 70.0/576.0, 70.0/576.0, placeX, placeY);
         coin->visible = true;
         coin->velocity.x = 0;
@@ -419,43 +334,16 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         coin->acceleration.y = 0;
         coins.push_back(coin);
     }
+    else if (type == "Cloud1"){
     
-        else if (type == "Cloud1"){
-            
-            
-            Entity* cloud = new Entity(items, 0.0/576.0, 146.0/576.0, 128.0/576.0, 71.0/576.0, placeX, placeY);
-            cloud->visible = true;
-            cloud->velocity.x = 0;
-            cloud->velocity.y = 0;
-            cloud->acceleration.x = 0;
-            cloud->acceleration.y = 0;
-            clouds.push_back(cloud);
-        }
-//    if (type == "Cloud2"){
-//        
-//        
-//        Entity* coin = new Entity(items, 288.0/576.0, 360.0/576.0, 70.0/576.0, 70.0/576.0, placeX, placeY);
-//        coin->visible = true;
-//        coin->velocity.x = 0;
-//        coin->velocity.y = 0;
-//        coin->acceleration.x = 0;
-//        coin->acceleration.y = 0;
-//        coins.push_back(coin);
-//    }
-
-    
-//    else if (type == "Enemy1"){
-//        
-//        Entity* e = new Entity(enemy, 52.0/353.0, 125.0/153.0, 50.0/353.0, 28.0/153.0, placeX, placeY);
-//        e->visible = true;
-//        e->velocity.x = 0;
-//        e->velocity.y = 0;
-//        e->acceleration.x = 0;
-//        e->acceleration.y = 0;
-//        e->scale.x = 0.7;
-//        e->scale.y = 0.4;
-//        slimes.push_back(e);
-//    }
+        Entity* cloud = new Entity(items, 0.0/576.0, 146.0/576.0, 128.0/576.0, 71.0/576.0, placeX, placeY);
+        cloud->visible = true;
+        cloud->velocity.x = 0;
+        cloud->velocity.y = 0;
+        cloud->acceleration.x = 0;
+        cloud->acceleration.y = 0;
+        clouds.push_back(cloud);
+    }
     else if (type == "Enemy2"){
         
         Entity* e = new Entity(enemy, 0.0/353.0, 32.0/153.0, 72.0/353.0, 36.0/153.0, placeX, placeY);
@@ -472,7 +360,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
     }
     else if (type == "Button"){
         
-        
         Entity* button = new Entity(items, 360.0/576.0, 360.0/576.0, 70.0/576.0, 70.0/576.0, placeX, placeY);
         button->visible = true;
         button->velocity.x = 0;
@@ -480,25 +367,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         button->acceleration.x = 0;
         button->acceleration.y = 0;
         buttons.push_back(button);
-        
-////        float u = (float)(426 % 64) / 64.0f;
-////        float v = (float)(426 / 64) / 32.0f;
-////        float width = 1.0f / 64.0f;
-////        float height = 1.0f / 32.0f;
-////        
-////        Entity* enemy = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-////        enemy->scale = 2;
-////        enemy->acceleration_y = 0.2;
-////        enemies.push_back(enemy);
-//        float u = (float)(1023 % 43) / (float)43.0;
-//        float v = (float)(1023 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* button = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//   
-//        buttons.push_back(button);
-        
     }
     else if (type == "Star"){
         
@@ -509,15 +377,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         star->acceleration.x = 0;
         star->acceleration.y = 0;
         stars.push_back(star);
-        
-//        float u = (float)(319 % 43) / (float)43.0;
-//        float v = (float)(319 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* star = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//      
-//       // yellows.push_back(yellow);
     }
     else if (type == "BlueKey"){
         
@@ -529,14 +388,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         key->acceleration.x = 0;
         key->acceleration.y = 0;
         keys.push_back(key);
-//        float u = (float)(454 % 43) / (float)43.0;
-//        float v = (float)(454 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* key = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        //greens.push_back(green);
     }
     else if (type == "OrangeKey"){
         
@@ -548,14 +399,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         key->acceleration.x = 0;
         key->acceleration.y = 0;
         keys.push_back(key);
-//        float u = (float)(454 % 43) / (float)43.0;
-//        float v = (float)(454 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* key = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        //greens.push_back(green);
     }
     else if (type == "YellowKey"){
         
@@ -567,14 +410,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         key->acceleration.x = 0;
         key->acceleration.y = 0;
         keys.push_back(key);
-//        float u = (float)(454 % 43) / (float)43.0;
-//        float v = (float)(454 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* key = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        //greens.push_back(green);
     }
     else if (type == "GreenKey"){
         
@@ -586,14 +421,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         key->acceleration.x = 0;
         key->acceleration.y = 0;
         keys.push_back(key);
-//        float u = (float)(454 % 43) / (float)43.0;
-//        float v = (float)(454 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* key = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        //greens.push_back(green);
     }
     else if (type == "BluePowerup"){
         
@@ -607,14 +434,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         powerup->scale.x = 1.5;
         powerup->scale.y = 1.5;
         powerups.push_back(powerup);
-//        float u = (float)(319 % 43) / (float)43.0;
-//        float v = (float)(319 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* powerup = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        // yellows.push_back(yellow);
     }
     else if (type == "OrangePowerup"){
         
@@ -628,15 +447,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         powerup->scale.x = 1.5;
         powerup->scale.y = 1.5;
         powerups.push_back(powerup);
-        
-//        float u = (float)(319 % 43) / (float)43.0;
-//        float v = (float)(319 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* powerup = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        // yellows.push_back(yellow);
     }
     else if (type == "YellowPowerup"){
         
@@ -650,15 +460,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         powerup->scale.x = 1.5;
         powerup->scale.y = 1.5;
         powerups.push_back(powerup);
-        
-//        float u = (float)(319 % 43) / (float)43.0;
-//        float v = (float)(319 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* powerup = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        // yellows.push_back(yellow);
     }
     else if (type == "GreenPowerup"){
         
@@ -672,15 +473,6 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         powerup->scale.x = 1.5;
         powerup->scale.y = 1.5;
         powerups.push_back(powerup);
-        
-//        float u = (float)(319 % 43) / (float)43.0;
-//        float v = (float)(319 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* powerup = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        // yellows.push_back(yellow);
     }
     else if (type == "Block"){
         
@@ -692,29 +484,8 @@ void Platformer::placeEntity(string type, float placeX, float placeY){
         block->acceleration.y = 0;
         block->scale.x = 1.5;
         block->scale.y = 1.5;
-//        block->scale = block->matrix.inverse() * block->scale;
-//        block->position.y += 0.05;
         blocks.push_back(block);
-//        float u = (float)(319 % 43) / (float)43.0;
-//        float v = (float)(319 / 43) / (float)43.0;
-//        float width = 1.0f;
-//        float height = 1.0f;
-//        
-//        Entity* block = new Entity(sprite_sheet, u, v, width, height, placeX, placeY);
-//        
-//        // yellows.push_back(yellow);
     }
-//    else if (type == "Door"){
-//    
-//        door = new Entity(tiles, 648.0/914.0, 432.0/936.0, 70.0/914.0, 70.0/936.0, placeX, placeY);
-//        door->visible = true;
-//        door->velocity.x = 0;
-//        door->velocity.y = 0;
-//        door->acceleration.x = 0;
-//        door->acceleration.y = 0;
-//        
-//        // yellows.push_back(yellow);
-//    }
 }
 bool Platformer::readHeader(ifstream &stream) {
     string line;
@@ -751,7 +522,6 @@ bool Platformer::readLayerData(ifstream &stream) {
         getline(sStream, key, '=');
         getline(sStream, value);
      
-
         if(key == "data") {
             for(int y=0; y < mapHeight; y++) {
                 getline(stream, line);
@@ -764,18 +534,13 @@ bool Platformer::readLayerData(ifstream &stream) {
                         // be careful, the tiles in this format are indexed from 1 not 0
                         int index = val-1;
                         levelData[y][x] = index;
-//                        if (index != 35 && index != 2 && index != 77 && index != 6 && index != 17 && index != 29 && index != 128 && index != 141) {
-//                            tiles.push_back(index);
-//                        }
                     } else {
                         levelData[y][x] = 0;
                     }
                 }
             }
         }
- //   }
     }
-//    for (int i : tiles) cout << i << endl;
     return true;
 }
 bool Platformer::readEntityData(ifstream &stream) {
@@ -803,12 +568,10 @@ bool Platformer::readEntityData(ifstream &stream) {
     return true;
 }
 
-
 void worldToTileCoordinates(float worldX, float worldY, int *gridX, int *gridY) {
     *gridX = (int)(worldX / TILE_SIZE);
     *gridY = (int)(-worldY / TILE_SIZE);
 }
-
 
 void Platformer::resetGame() {
     
@@ -840,15 +603,12 @@ void Platformer::BuildLevel(unsigned int texture) {
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     
     vector<float> vertexData;
     vector<float> texCoordData;
 
-    
     for (int y=0; y < mapHeight; y++) {
         for(int x=0; x < mapWidth; x++) {
 
@@ -857,7 +617,7 @@ void Platformer::BuildLevel(unsigned int texture) {
                 float u = (float)(((int)levelData[y][x]) % tile_spriteX) / (float) tile_spriteX;
                 float v = (float)(((int)levelData[y][x]) / tile_spriteX) / (float) tile_spriteY;
                 float spriteWidth = 1.0/tile_spriteX - 0.002;
-                float spriteHeight = 1.0/tile_spriteY - 0.0039;
+                float spriteHeight = 1.0/tile_spriteY - 0.006;
                 
                 vertexData.insert(vertexData.end(), {
                     TILE_SIZE * x, -TILE_SIZE * y,
@@ -891,7 +651,6 @@ void Platformer::BuildLevel(unsigned int texture) {
             }
         }
     }
-
     glVertexPointer(2, GL_FLOAT, 0, vertexData.data());
     glEnableClientState(GL_VERTEX_ARRAY);
     glTexCoordPointer(2, GL_FLOAT, 0, texCoordData.data());
@@ -902,8 +661,6 @@ void Platformer::BuildLevel(unsigned int texture) {
 void Platformer::checkBotCollision(Entity* entity) {
     int gridX, gridY;
     float val = entity->position.y - (entity->sprite->height * entity->scale.y * entity->scale.x);
-
-//    float val = (player->position.y - (player->sprite->height / 2));
     worldToTileCoordinates(entity->position.x, val, &gridX, &gridY);
     
     entity->collidedBot = false;
@@ -913,6 +670,8 @@ void Platformer::checkBotCollision(Entity* entity) {
             player->position.x = 2.7;
             player->position.y = -6;
             flies.clear();
+            player->playerKeys.clear();
+            player->bullets.clear();
             powerups.clear();
             buttons.clear();
             blocks.clear();
@@ -928,25 +687,9 @@ void Platformer::checkBotCollision(Entity* entity) {
             buttons.clear();
             blocks.clear();
             keys.clear();
-            readLevelThree();
-            state = LEVEL_THREE;
-        }
-        else if (state == LEVEL_THREE){
-            player->position.x = 2.7;
-            player->position.y = -6;
-            flies.clear();
-            powerups.clear();
-            buttons.clear();
-            blocks.clear();
-            keys.clear();
-            readLevelFour();
-           state = LEVEL_FOUR;
-        }
-        else {
             state = GAME_OVER;
         }
     }
-
     if (gridX > 0 && gridY > 0){
         
         for (int i : collideTiles) {
@@ -961,7 +704,7 @@ void Platformer::checkBotCollision(Entity* entity) {
         
         for (int i : harmTiles) {
             if (levelData[gridY][gridX] == i) {
-            //    float y_dist = fabs(val - (-(gridY*TILE_SIZE)));
+                Mix_PlayChannel(-1, hit, 0);
                 if (entity->flipped){
                 entity->position.x += 0.8;
                 entity->position.y += 0.3;
@@ -974,22 +717,16 @@ void Platformer::checkBotCollision(Entity* entity) {
                 }
                 for (auto it = entity->hearts.rbegin(); it != entity->hearts.rend(); ++it) {
                 
-//                for (Entity* heart : player->hearts) {
-                
-              
                     if ((*it)->color == "Empty") continue;
-                    
                     
                     else if ((*it)->color == "Full"){
                         (*it)->sprite->v = 0.0;
                         (*it)->color = "Half";
-                       
                         break;
                     }
                     else if ((*it)->color == "Half") {
                         (*it)->sprite->v = 47.0/269.0;
                         (*it)->color = "Empty";
-                    
                         break;
 
                     }
@@ -1002,12 +739,7 @@ void Platformer::checkBotCollision(Entity* entity) {
 void Platformer::checkTopCollision(Entity* entity) {
     
     int gridX, gridY;
-//    float val = player->position.y + ((player->sprite->height / 4) * player->scale.y * player->scale.x);
     float val = entity->position.y + (entity->sprite->height/4 * entity->scale.y * entity->scale.x);
-
-
-//    float val = player->position.y;
-
     worldToTileCoordinates(entity->position.x, val, &gridX, &gridY);
     
     entity->collidedTop = false;
@@ -1043,38 +775,14 @@ void Platformer::checkTopCollision(Entity* entity) {
             buttons.clear();
             blocks.clear();
             keys.clear();
-            readLevelThree();
-            state = LEVEL_THREE;
-        }
-        else if (state == LEVEL_THREE){
-            player->position.x = 2.7;
-            player->position.y = -6;
-            flies.clear();
-            powerups.clear();
-            buttons.clear();
-            blocks.clear();
-            keys.clear();
-            readLevelFour();
-            state = LEVEL_FOUR;
-        }
-        else {
             state = GAME_OVER;
         }
     }
-
-
 }
 void Platformer::checkLeftCollision(Entity* entity) {
     
     int gridX, gridY;
     float val = entity->position.x - entity->sprite->width / 2;
-//    float val = player->position.x + (player->sprite->width * player->scale.x);
-//    float val = player->position.x - (player->sprite->width / 2);
-    
-//    float val = player->position.y - (player->sprite->height * player->scale.y);
-
-
-//    worldToTileCoordinates(val, player->position.y, &gridX, &gridY);
     worldToTileCoordinates(val, entity->position.y, &gridX, &gridY);
     
     entity->collidedLeft = false;
@@ -1083,7 +791,6 @@ void Platformer::checkLeftCollision(Entity* entity) {
         if (levelData[gridY][gridX] == i){
             
             val -= 0.3;
- //           float x_dist = fabs(val - ((gridX*TILE_SIZE)));
             
             float x_dist = fabs(val - ((gridX*TILE_SIZE)));
             
@@ -1112,52 +819,14 @@ void Platformer::checkLeftCollision(Entity* entity) {
             buttons.clear();
             blocks.clear();
             keys.clear();
-            readLevelThree();
-            state = LEVEL_THREE;
-        }
-        else if (state == LEVEL_THREE){
-            player->position.x = 2.7;
-            player->position.y = -6;
-            flies.clear();
-            powerups.clear();
-            buttons.clear();
-            blocks.clear();
-            keys.clear();
-            readLevelFour();
-            state = LEVEL_FOUR;
-        }
-        else {
             state = GAME_OVER;
         }
     }
-
-
-//    int gridX, gridY;
-//    float val = player->position.x - (player->sprite->width / 2);
-//    worldToTileCoordinates(val, player->position.y, &gridX, &gridY);
-//    
-//    if (levelData[gridY][gridX] == 98 || levelData[gridY][gridX] == 161 || levelData[gridY][gridX] == 817 || levelData[gridY][gridX] ==  883 || levelData[gridY][gridX] == 884){
-//        
-//        float x_dist = fabs(val - ((gridX*TILE_SIZE)));
-//        
-//        player->position.x += x_dist + 0.001;
-//        player->velocity.x = 0;
-//        player->collidedLeft = true;
-//        
-//    }
-//    else {
-//        player->collidedLeft = false;
-//    }
-//    if (levelData[gridY][gridX] == 1186 || levelData[gridY][gridX] == 1187 ){
-//        state = GAME_OVER;
-//    }
 }
 void Platformer::checkRightCollision(Entity* entity) {
     
     int gridX, gridY;
-//    float val = (player->position.x - (player->sprite->width / 2));
     float val = entity->position.x + (entity->sprite->width * entity->scale.x);
-
     worldToTileCoordinates(val, entity->position.y, &gridX, &gridY);
     
     entity->collidedRight = false;
@@ -1170,7 +839,6 @@ void Platformer::checkRightCollision(Entity* entity) {
             entity->velocity.x = 0;
             entity->collidedRight = true;
         }
-   
     }
     if (levelData[gridY][gridX] == 65) {
         if (state == LEVEL_ONE) {
@@ -1192,21 +860,6 @@ void Platformer::checkRightCollision(Entity* entity) {
             buttons.clear();
             blocks.clear();
             keys.clear();
-            readLevelThree();
-            state = LEVEL_THREE;
-        }
-        else if (state == LEVEL_THREE){
-            player->position.x = 2.7;
-            player->position.y = -6;
-            flies.clear();
-            powerups.clear();
-            buttons.clear();
-            blocks.clear();
-            keys.clear();
-            readLevelFour();
-            state = LEVEL_FOUR;
-        }
-        else {
             state = GAME_OVER;
         }
     }
@@ -1222,7 +875,6 @@ bool Platformer::checkCollision(Entity* a, Entity* b) {
     Matrix aInverse = a->matrix.inverse();
     Matrix bInverse = b->matrix.inverse();
     
-    //    float aWidth = a->sprite->width * a->scale_x * 0.9f;
     float aWidth = a->sprite->width * a->scale.x;
     float aHeight = a->sprite->height * a->scale.y;
     float bWidth = b->sprite->width * b->scale.x;
@@ -1254,7 +906,6 @@ bool Platformer::checkCollision(Entity* a, Entity* b) {
     if (!(minY <= bHeight && maxY >= -bHeight)) {
         return false;
     }
-    
     Vector bTL = Vector(-bWidth, bHeight);
     Vector bBL = Vector(-bWidth, -bHeight);
     Vector bBR = Vector(bWidth, -bHeight);
@@ -1281,45 +932,34 @@ bool Platformer::checkCollision(Entity* a, Entity* b) {
         return false;
     }
     return true;
- 
 }
 void Platformer::checkYCollisions(Entity* entity) {
         checkBotCollision(entity);
-    
         checkTopCollision(entity);
-    
 }
 void Platformer::checkXCollisions(Entity* entity) {
      checkLeftCollision(entity);
      checkRightCollision(entity);
 }
 void Platformer::shoot(Entity* shooter, vector<Entity*> bullets, int& index) {
-//    if (bullets[index]) {
     
-        cout << "shoot";
+        Mix_PlayChannel(-1, pew, 0);
         bullets[index]->visible = true;
         bullets[index]->velocity.x = fabs(bullets[index]->velocity.x);
         
         if (shooter->flipped) {
             bullets[index]->velocity.x *= -1;
             bullets[index]->position.x = shooter->position.x - shooter->sprite->width/2;
-            bullets[index]->position.y = shooter->position.y + shooter->sprite->height * shooter->scale.y;
-//            bullets[index]->position.x = shooter->position.x;
-//            bullets[index]->position.y = shooter->position.y;
+            bullets[index]->position.y = shooter->position.y + shooter->sprite->height * 0.01;
         }
         else {
-//            
             bullets[index]->position.x = shooter->position.x + shooter->sprite->width/2;
-            bullets[index]->position.y = shooter->position.y + shooter->sprite->height * shooter->scale.y;
-            
-//            bullets[index]->position.x = shooter->position.x;
-//            bullets[index]->position.y = shooter->position.y;
+            bullets[index]->position.y = shooter->position.y + shooter->sprite->height * 0.01;
         }
         index++;
         if (index > MAX_BULLETS - 1) {
             bIndex = 0;
         }
- //   }
 }
 
 void Platformer::fixedUpdate() {
@@ -1329,34 +969,18 @@ void Platformer::fixedUpdate() {
         if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE) done = true;
         else if(event.type == SDL_KEYDOWN) {
             if (event.key.keysym.scancode == SDL_SCANCODE_UP) {
-                //                if (player->collidedBot) {
                 player->velocity.y = 7;
-                
-//                player->scale.y = mapValue(fabs(player->velocity.y), 0.0, 2.0, 0.4, 0.8);
-//                player->scale.x = mapValue(fabs(player->velocity.y), 2.0, 0.0, 0.6, 0.4);
-                //                Mix_PlayChannel(-1, jump, 0);
-                //                }
+                Mix_PlayChannel(-1, jump, 0);
             }
             else if(event.key.keysym.scancode == SDL_SCANCODE_SPACE){
                 if (player->bullets.size() > 0) shoot(player, player->bullets, bIndex);
             }
             else {
-                
-//                player->scale.y = 0.2;
-//                player->scale.x = 0.95;
                 player->velocity.y = 0;
             }
         }
     }
-    
-//    player->velocity.x = lerp(player->velocity.x, 0.0f, FIXED_TIMESTEP*friction);
-//    player->velocity.x += player->acceleration.x * FIXED_TIMESTEP;
     player->position.x += player->velocity.x * FIXED_TIMESTEP;
-    
-//    player->velocity_x = lerp(player->velocity_x, 0.0f, FIXED_TIMESTEP*friction);
-//    player->velocity_x += player->acceleration_x * FIXED_TIMESTEP;
-//    player->x += player->velocity_x * FIXED_TIMESTEP;
-    
     
     checkXCollisions(player);
     
@@ -1364,7 +988,6 @@ void Platformer::fixedUpdate() {
     player->velocity.y += player->acceleration.y * FIXED_TIMESTEP;
     player->position.y += player->velocity.y * FIXED_TIMESTEP;
     player->velocity.y -= gravity*1.2 * FIXED_TIMESTEP;
-    
 
     for (Entity* bullet : player->bullets) {
         if (bullet->visible){
@@ -1376,122 +999,94 @@ void Platformer::fixedUpdate() {
                 bullet->visible = false;
             }
         }
-        
     }
     for (Entity* fly : flies) {
         for (Entity* bullet : player->bullets)
-        
+            
             if (checkCollision(fly, bullet)){
                 fly->sprite->u = 143.0/353.0;
                 fly->sprite->v = 0;
                 fly->sprite->width = 59.0/353.0;
                 fly->sprite->height = 33.0/153.0;
                 fly->dead = true;
-               // fly->visible = false;
             }
-        
         if (fly->angry && !fly->dead) {
-            
             Vector direction;
             direction.x = player->position.x - fly->position.x;
             direction.y = player->position.y - fly->position.y;
-            
             
             direction.normalize();
             
             fly->position.y += direction.y*0.02;
             fly->position.x += direction.x*0.02;
-            
         }
         else  if (!fly->dead) {
-          
-        
-        fly->position.x += noise1(perlinValue)/15;
-        fly->position.y += noise1(perlinValue+ 1.0f)/15;
-            
+            fly->position.x += noise1(perlinValue)/15;
+            fly->position.y += noise1(perlinValue+ 1.0f)/15;
         }
         else{
             
-            fly->position.y -= gravity * FIXED_TIMESTEP;
+            fly->position.y -= gravity * 0.001;
             checkXCollisions(fly);
             checkYCollisions(fly);
             
         }
-        
+        checkXCollisions(fly);
+        checkYCollisions(fly);
         if (fly->collidedBot || fly->collidedTop || fly->collidedRight || fly->collidedLeft){
             fly->angry = false;
         }
+        Vector direction;
+        direction.x = player->position.x - fly->position.x;
+        direction.y = player->position.y - fly->position.y;
         
+        float distance = sqrt((direction.x*direction.x) + (direction.y*direction.y));
+        if (distance < 0.8) fly->angry = true;
         
         if (checkCollision(player, fly) && !fly->dead) {
-            fly->angry = true;
             for (auto it = player->hearts.rbegin(); it != player->hearts.rend(); ++it) {
                 
-                //                for (Entity* heart : player->hearts) {
-                
-                
                 if ((*it)->color == "Empty") continue;
-                
-                
+    
                 else if ((*it)->color == "Full"){
                     (*it)->sprite->v = 0.0;
                     (*it)->color = "Half";
-                    
                     break;
-                    
-                    
                 }
                 else if ((*it)->color == "Half") {
                     (*it)->sprite->v = 47.0/269.0;
                     (*it)->color = "Empty";
-                    
                     break;
-                    
                 }
-                
-                
             }
             if (player->flipped){
                 player->position.x += 1;
-                //    player->position.y += 0.3;
-                //    player->velocity.y = 0;
             }
             else{
                 player->position.x -= 1;
-                //    player->position.y += 0.3;
-                //    player->velocity.y = 0;
+ 
             }
-            
-           
         }
-        
-
     }
+    checkYCollisions(player);
 
-    
-      checkYCollisions(player);
-
-    
     for (Entity* b : blocks) {
         if (b->visible){
-        if (checkCollision(player, b)) {
-//            float b_left = b->position.x - b->sprite->width / 2;
-//            float p_right = player->position.x + (player->sprite->width * player->scale.x);
-//            
-            float x_dist = fabs(player->position.x - b->position.x);
-            float x_maxDist = player->sprite->width + b->sprite->width + 0.1;
-            float x_pen = fabs(x_dist - x_maxDist);
-            
-     
+            if (checkCollision(player, b)) {
+                
+                float x_dist = fabs(player->position.x - b->position.x);
+                float x_maxDist = player->sprite->width + b->sprite->width + 0.1;
+                float x_pen = fabs(x_dist - x_maxDist);
+                
                 player->position.x -= x_pen + 0.0001;
                 player->velocity.x = 0;
-            
-            
-        }
+            }
         }
     }
     for (Entity* but : buttons) {
         if (checkCollision(player, but)) {
+            
+            if (but->sprite->u != 360.0/576.0) Mix_PlayChannel(-1, button, 0);
             but->sprite->u = 360.0/576.0;
             but->sprite->v = 288.0/576.0;
             
@@ -1501,28 +1096,36 @@ void Platformer::fixedUpdate() {
         }
     }
     for (Entity* c : coins) {
+        
         if (checkCollision(player, c)) {
+            
             if (c->visible) {
                 player->playerCoins += 1;
+                if (c->visible) Mix_PlayChannel(-1, coin, 0);
                 c->visible = false;
             }
         }
     }
     for (Entity* s : stars) {
+     
         if (checkCollision(player, s)) {
+            
             if (s->visible) {
                 player->playerCoins += 10;
+                if (s->visible)  Mix_PlayChannel(-1, coin, 0);
                 s->visible = false;
             }
         }
     }
     for (Entity* k : keys) {
+       
         if (checkCollision(player, k)) {
+          
             if (k->visible) {
                 player->playerKeys.push_back(k);
+                if (k->visible) Mix_PlayChannel(-1, coin, 0);
                 k->visible = false;
                 for (Entity* k_hud : keyHuds) {
-                   // for (Entity* key : keys) {
                         if (k->color == k_hud->color) {
                             if (k_hud->color == "Blue" ) {
                                 k_hud->sprite->u = 146.0/269.0;
@@ -1541,16 +1144,16 @@ void Platformer::fixedUpdate() {
                                 k_hud->sprite->v = 189.0/269.0;
                             }
                         }
-                    //}
                 }
             }
         }
     }
     for (Entity* p : powerups) {
         if (checkCollision(player, p)) {
-            
             for (Entity* k : player->playerKeys) {
                 if (k->color == p->color) {
+                    
+                    if (p->visible) Mix_PlayChannel(-1, powerup, 0);
                     p->visible = false;
                     
                     for (Entity* k_hud : keyHuds) {
@@ -1571,39 +1174,27 @@ void Platformer::fixedUpdate() {
                                 k_hud->sprite->u = 147.0/269.0;
                                 k_hud->sprite->v = 80.0/269.0;
                             }
-                            
                         }
                     }
-                    
                     if (p->color == "Blue" ) {
                         player->speed = 3.5;
-
-                      
-                    }
-                    else if (p->color == "Green") {
                       
                     }
                     else if (p->color == "Orange") {
                         if (player->bullets.size() == 0){
-                        for (int i = 0; i < MAX_BULLETS; i++) {
-                            Entity* bullet = new Entity(items, 0.0/576.0, 435.0/576.0, 70.0/576.0, 70.0/576.0, 0, 0, 0.6, 0.6, 0);
-                            bullet->visible = false;
-                            bullet->velocity.x = 0.1;
-                            bullet->lifeTime = 0;
-                            player->bullets.push_back(bullet);
+                            for (int i = 0; i < MAX_BULLETS; i++) {
+                                Entity* bullet = new Entity(items, 0.0/576.0, 435.0/576.0, 70.0/576.0, 70.0/576.0, 0, 0, 0.8, 0.8, 0);
+                                bullet->visible = false;
+                                bullet->velocity.x = 0.1;
+                                bullet->lifeTime = 0;
+                                player->bullets.push_back(bullet);
+                            }
                         }
-                        }
-                        
-                    }
-                    else if (p->color == "Yellow") {
-                      
                     }
                 }
             }
         }
     }
-
- 
     bool dead = true;
     for (Entity* heart : player->hearts) {
         
@@ -1612,10 +1203,7 @@ void Platformer::fixedUpdate() {
     if (dead) {
         player->visible = false;
         state = GAME_OVER;
-        
     }
-
-  
 }
 void Platformer::Update(float elapsed){
     switch(state) {
@@ -1626,12 +1214,6 @@ void Platformer::Update(float elapsed){
             UpdateGameLevel(elapsed);
             break;
         case LEVEL_TWO:
-            UpdateGameLevel(elapsed);
-            break;
-        case LEVEL_THREE:
-            UpdateGameLevel(elapsed);
-            break;
-        case LEVEL_FOUR:
             UpdateGameLevel(elapsed);
             break;
         case GAME_OVER:
@@ -1654,7 +1236,6 @@ void Platformer::UpdateMainMenu(float elapsed) {
             }
         }
     }
-    
 }
 void Platformer::UpdateGameOver() {
     glMatrixMode(GL_MODELVIEW);
@@ -1690,54 +1271,47 @@ void Platformer::UpdateGameLevel(float elapsed) {
     
     if(keys[SDL_SCANCODE_RIGHT]){
         
-      
         player->flipped = false;
         player->velocity.x = player->speed;
         
         if (player->collidedBot){
             
-        
         animationElapsed += elapsed;
-        if (animationElapsed > 1.0/framesPerSecond) {
-            anim_index++;
-            animationElapsed = 0.0;
-            
-            if (anim_index > numFrames - 1) {
-                anim_index = 0;
+            if (animationElapsed > 1.0/framesPerSecond) {
+                anim_index++;
+                animationElapsed = 0.0;
+                
+                if (anim_index > numFrames - 1) {
+                    anim_index = 0;
+                }
             }
-        }
         }
     }
     else if(keys[SDL_SCANCODE_LEFT]){
-        
        
         player->flipped = true;
           player->velocity.x = -player->speed;
         
         if (player->collidedBot) {
-            
-      
-           
+        
         animationElapsed += elapsed;
-        if (animationElapsed > 1.0/framesPerSecond) {
-            anim_index++;
-            animationElapsed = 0.0;
-            
-            if (anim_index > numFrames - 1) {
-                anim_index = 0;
+            if (animationElapsed > 1.0/framesPerSecond) {
+                anim_index++;
+                animationElapsed = 0.0;
+                
+                if (anim_index > numFrames - 1) {
+                    anim_index = 0;
+                }
             }
         }
-        }
-        
     }
-    
     else {
         anim_index = 10;
         player->velocity.x = 0;
     }
     
     animationTime += elapsed;
-    animationValue = mapValue(animationTime, 0.0, 5.0, 0.0, 3.0);
+    animationValue = mapValue(animationTime, 0.0, 3.0, -2.0, -1.0);
     
    perlinValue += elapsed;
     
@@ -1750,7 +1324,6 @@ void Platformer::UpdateGameLevel(float elapsed) {
             fly->sprite->v = 0;
             fly->sprite->width = 75.0/353.0;
             fly->sprite->height = 31.0/153.0;
-            
         }
         else {
             fly->sprite->u = 0;
@@ -1761,7 +1334,6 @@ void Platformer::UpdateGameLevel(float elapsed) {
         if (fly_animationElapsed > 0.6) fly_animationElapsed = 0;
         }
     }
-    
 }
 void Platformer::Render() {
     switch(state) {
@@ -1774,12 +1346,6 @@ void Platformer::Render() {
         case LEVEL_TWO:
             RenderGameLevel();
             break;
-        case LEVEL_THREE:
-            RenderGameLevel();
-            break;
-        case LEVEL_FOUR:
-            RenderGameLevel();
-            break;
         case GAME_OVER:
             RenderGameOver();
             break;
@@ -1787,27 +1353,19 @@ void Platformer::Render() {
 }
 void Platformer::RenderMainMenu() {
     glClear(GL_COLOR_BUFFER_BIT);
-    
-//       DrawText(font_tex, "Press Up to jump/fly.", lerp(0.0, 1.0, animationValue), 0.0, 0.05, 0.001, 0, 0, 0, 0);
-    DrawText(font_tex, "Press Up to jump/fly.", -1, 1, 0.08, 0.001, 0, 0, 0, 0);
-    DrawText(font_tex, "Collect coins. Avoid enemies.", -1, 0.6, 0.08, 0.001, 0, 0, 0, 0);
-    DrawText(font_tex, "Reach the end to win.", -1, 0.3, 0.08, 0.001, 0, 0, 0, 0);
-    DrawText(font_tex, "Press Enter to begin.", -1, -0.1, 0.08, 0.001, 0, 0, 0, 0);
-    DrawText(font_tex, "Press Q to quit.", -1, -0.3, 0.08, 0.001, 0, 0, 0, 0);
-    
-//
-//    
-//    DrawText(font_tex, "GAME", 0, 0, 0.25, 0.01, 0, 0, 0, 0);
-//    DrawText(font_tex, "OVER", -0.9, 0.34, 0.25, 0.01, 0, 0, 0, 0);
-//    DrawText(font_tex, "Press Enter to play again.", -0.32, -.4, 0.05, 0.0005, 0, 0, 0, 0);
-    
+
+    DrawText(font_tex, "Press Up to jump/fly.", easeIn(-2.0, -1.0, animationValue), 2, 0.1, 0.001, 0, 0, 0, 0);
+    DrawText(font_tex, "Collect coins. Avoid enemies.", easeIn(-2.0, -1.0, animationValue), 1.7, 0.1, 0.001, 0, 0, 0, 0);
+    DrawText(font_tex, "Reach the end to proceed.", easeIn(-2.0, -1.0, animationValue), 1.4, 0.1, 0.001, 0, 0, 0, 0);
+    DrawText(font_tex, "Press Enter to begin.", easeIn(-2.0, -1.0, animationValue), 0.5, 0.1, 0.001, 0, 0, 0, 0);
+    DrawText(font_tex, "Press Q to quit.", easeIn(-2.0, -1.0, animationValue), 0.2, 0.1, 0.001, 0, 0, 0, 0);
+
     SDL_GL_SwapWindow(window);
 }
 void Platformer::RenderGameLevel() {
     glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-
     
     float b= player->position.x * 600.0f;
     float c = ((int)b) / 600.0f;
@@ -1822,12 +1380,9 @@ void Platformer::RenderGameLevel() {
     mat.m[3][0] = -player->position.x;
     mat.m[3][1] = -player->position.y;
     
-    
     glMultMatrixf(mat.ml);
 
-    
     BuildLevel(sprite_sheet);
-    
 
     for (Entity* b : blocks) {
         b->Draw();
@@ -1864,8 +1419,8 @@ void Platformer::RenderGameLevel() {
             b->Draw();
         }
     }
-    float y_offset = 1.6;
-    float x_offset = 2.1;
+    float y_offset = 2.4;
+    float x_offset = 2.4;
     for (Entity* heart : player->hearts) {
         heart->position.x = player->position.x + x_offset;
         heart->position.y = player->position.y + y_offset;
@@ -1873,15 +1428,12 @@ void Platformer::RenderGameLevel() {
         
         heart->Draw();
     }
-    
-
-    coinHud->position.x = player->position.x + 2.4;
-    coinHud->position.y = player->position.y + 1.48;
+    coinHud->position.x = player->position.x + 2.7;
+    coinHud->position.y = player->position.y + 2.28;
     coinHud->Draw();
     DrawText(font_tex, ":", coinHud->position.x + 0.07, coinHud->position.y - 0.005, 0.07, 0.0005, 0, 0, 0, 0);
     string coins = to_string(player->playerCoins);
     DrawText(font_tex, coins, coinHud->position.x + 0.16, coinHud->position.y - 0.005, 0.07, 0.0005, 0, 0, 0, 0);
-    
   
     float key_offset_x = 0.165;
     for (Entity* k_hud : keyHuds) {
@@ -1893,9 +1445,7 @@ void Platformer::RenderGameLevel() {
             k_hud->Draw();
             key_offset_x -= 0.2;
         }
-
     }
- 
     player->DrawUniform(anim_index);
     
     SDL_GL_SwapWindow(window);
@@ -1904,17 +1454,18 @@ void Platformer::RenderGameLevel() {
 void Platformer::RenderGameOver() {
     glClear(GL_COLOR_BUFFER_BIT);
     
-
     if (player->visible) {
-        DrawText(font_tex, "YOU", -1, 0.6, 0.25, 0.01, 0, 0, 0, 0);
-        DrawText(font_tex, "WIN! :)", -0.9, 0.34, 0.25, 0.01, 0, 0, 0, 0);
-        DrawText(font_tex, "Press Enter to play again.", -0.32, -.4, 0.05, 0.0005, 0, 0, 0, 0);
+        DrawText(font_tex, "YOU", -1, 1.5, 0.25, 0.01, 0, 0, 0, 0);
+        DrawText(font_tex, "WIN! :)",-1, 1.0, 0.25, 0.01, 0, 0, 0, 0);
+        DrawText(font_tex, "You got ", -2, 0.5, 0.15, 0.001, 0, 0, 0, 0);
+        string coins = to_string(player->playerCoins);
+        DrawText(font_tex, coins, -0.5, 0.5, 0.15, 0.001, 0, 0, 0, 0);
+        DrawText(font_tex, "coins", -0.2, 0.5, 0.15, 0.001, 0, 0, 0, 0);
+        DrawText(font_tex, "Press Enter to play again.", -0.32, -.4, 0.1, 0.0005, 0, 0, 0, 0);
     }
     else {
-//        DrawText(font_tex, "GAME", -1, 0.6, 0.25, 0.01, 0, 0, 0, 0);
-        DrawText(font_tex, "OVER", 0, 3, 0.25, 0.01, 0, 0, 0, 0);
-        DrawText(font_tex, "GAME", -0.9, 0.34, 0.25, 0.01, 0, 0, 0, 0);
-        DrawText(font_tex, "Press Enter to play again.", -0.32, -.4, 0.05, 0.0005, 0, 0, 0, 0);
+        DrawText(font_tex, "GAME OVER", -1, 1, 0.25, 0.01, 0, 0, 0, 0);
+        DrawText(font_tex, "Press Enter to play again.", -0.32, -.4, 0.07, 0.005, 0, 0, 0, 0);
     }
     SDL_GL_SwapWindow(window);
 }
@@ -1929,7 +1480,7 @@ bool Platformer::UpdateAndRender() {
     }
     while (fixedElapsed >= FIXED_TIMESTEP ) {
         fixedElapsed -= FIXED_TIMESTEP;
-        if (state == LEVEL_ONE || state == LEVEL_TWO || state == LEVEL_THREE || state == LEVEL_FOUR) fixedUpdate();
+        if (state == LEVEL_ONE || state == LEVEL_TWO ) fixedUpdate();
    
     }
     timeLeftOver = fixedElapsed;

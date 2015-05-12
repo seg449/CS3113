@@ -6,8 +6,6 @@
 //  Copyright (c) 2015 Hannah Mendez. All rights reserved.
 //
 
-#pragma once
-
 
 #pragma once
 #include "Entity.h"
@@ -19,7 +17,7 @@
 #define TILE_SIZE 0.33f
 
 
-enum GameState { MAIN_MENU, LEVEL_ONE, LEVEL_TWO, LEVEL_THREE, LEVEL_FOUR, GAME_OVER };
+enum GameState { MAIN_MENU, LEVEL_ONE, LEVEL_TWO, GAME_OVER };
 
 unsigned int LoadTexture(const char *image_path);
 
@@ -39,8 +37,6 @@ public:
     
     void readLevelOne();
     void readLevelTwo();
-    void readLevelThree();
-    void readLevelFour();
     
     void setup();
     bool readLayerData(ifstream &stream);
@@ -49,9 +45,6 @@ public:
     bool readCollisionData(ifstream &stream);
     
     void placeEntity(string type, float placeX, float placeY);
-    void placeBlock(float placeX, float placeY);
-    
-    void playerWalk(int anim_index);
     
     void shoot(Entity* shooter, vector<Entity*> bullets, int& index);
     
@@ -104,23 +97,22 @@ private:
     Mix_Music* music;
     Mix_Chunk* jump;
     Mix_Chunk* coin;
+    Mix_Chunk* hit;
+    Mix_Chunk* powerup;
+    Mix_Chunk* pew;
+    Mix_Chunk* button;
     
     SDL_Window* window;
 
-    
     float friction;
     float gravity;
-    
-    Entity* bop;
+
     Entity* coinHud;
     vector<Entity*> keyHuds;
-    
- //   ParticleEmitter par;
-    
+
     int bIndex;
     
     Entity* player;
-    Entity* door;
     vector<int> collideTiles;
     vector<int> harmTiles;
     vector<Entity*> clouds;
@@ -132,6 +124,4 @@ private:
     vector<Entity*> keys;
     vector<Entity*> buttons;
     vector<Entity*> powerups;
-    //Entity* enemies[20];
-
 };

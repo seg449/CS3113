@@ -25,42 +25,7 @@ using namespace std;
 
 float lerp(float v0, float v1, float t);
 
-class Color {
-public:
-    Color();
-    Color(float r, float g, float b, float a);
-    float r;
-    float g;
-    float b;
-    float a;
-};
-class Particle {
-public:
-    Vector position;
-    Vector velocity;
-    float lifetime;
-};
-
-class ParticleEmitter {
-public:
-    
-    ParticleEmitter(unsigned int particleCount);
-    ParticleEmitter();
-    ~ParticleEmitter();
-    void Update(float elapsed);
-    void Render();
-    Vector position;
-    Vector gravity;
-    Vector velocity;
-    Vector velocityDeviation;
-    float maxLifetime;
-    Color startColor;
-    Color endColor;
-    vector<Particle> particles;
-};
-
 class SheetSprite{
-    
 public:
     SheetSprite();
     
@@ -77,7 +42,6 @@ public:
     float width;
     float height;
 };
-
 class Entity{
 public:
     
@@ -88,32 +52,24 @@ public:
     
     ~Entity();
     void Draw(GLfloat coordinates[]);
-    void Build();
     void Draw();
-    void BuildUniform(int index);
     void DrawUniform(int index);
     
     void buildMatrix();
     
     Vector position;
-  
-    string color;
-
     Vector scale;
-
     float rotation;
-    
     Matrix matrix;
-    
-    bool visible;
-    
     Vector velocity;
     Vector acceleration;
     
     bool angry;
     float speed;
-
+    string color;
     bool dead;
+    bool visible;
+    
     bool collidedTop;
     bool collidedBot;
     bool collidedLeft;
